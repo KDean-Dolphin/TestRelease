@@ -1,0 +1,8 @@
+{
+  "owner": "gs1",
+  "repo": "gs1-syntax-dictionary",
+  "path": "gs1-syntax-dictionary.txt",
+  "downloadMain": true,
+  "forceDownload": true,
+  "release": "main"
+}

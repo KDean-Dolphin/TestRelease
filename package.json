@@ -1,0 +1,40 @@
+{
+  "name": "@aidc-toolkit/gs1",
+  "version": "0.9.5",
+  "description": "GS1 AIDC Toolkit",
+  "type": "module",
+  "main": "dist/index.js",
+  "homepage": "https://github.com/aidc-toolkit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aidc-toolkit/gs1.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aidc-toolkit/gs1/issues"
+  },
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Kevin Dean",
+    "email": "Kevin.Dean@datadevelopment.com",
+    "url": "https://www.linkedin.com/in/kdean"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "build": "tsup src/index.ts --clean --format cjs,esm --dts",
+    "build-doc": "npm run build && tsc src/index.ts --outDir dist --target esnext --moduleResolution nodenext --module nodenext --emitDeclarationOnly --declaration --declarationMap",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@aidc-toolkit/dev": "^0.9.5",
+    "eslint": "^9.15.0",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.5"
+  },
+  "dependencies": {
+    "@aidc-toolkit/core": "^0.9.5",
+    "@aidc-toolkit/utility": "^0.9.5",
+    "ts-mixer": "^6.0.4"
+  }
+}

@@ -1,0 +1,5 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Publish" type="NodeJSConfigurationType" path-to-js-file="src/publish.ts" typescript-loader="bundled" working-dir="$PROJECT_DIR$">
+    <method v="2" />
+  </configuration>
+</component>
