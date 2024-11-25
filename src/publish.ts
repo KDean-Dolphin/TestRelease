@@ -67,33 +67,27 @@ function publish(): void {
         step("package", () => {
             const packageConfigPath = path.resolve("package.json");
 
-            fs.readFile(packageConfigPath, null, (err, data) => {
-                if (err !== null) {
-                    throw err;
-                }
+            const packageConfig: JSONAsRecord = JSON.parse(fs.readFileSync(packageConfigPath).toString());
 
-                const packageConfig: JSONAsRecord = JSON.parse(data.toString());
+            packageConfig["version"] = config.version;
 
-                packageConfig["version"] = config.version;
+            const organizationPrefix = `@${config.organization}/`;
+            const dependencyVersion = `^${config.version}`;
 
-                const organizationPrefix = `@${config.organization}/`;
-                const dependencyVersion = `^${config.version}`;
-
-                function updateDependencies(dependencies: UndefinableJSONAsRecord) {
-                    if (dependencies !== undefined) {
-                        for (const key in dependencies) {
-                            if (key.startsWith(organizationPrefix)) {
-                                dependencies[key] = dependencyVersion;
-                            }
+            function updateDependencies(dependencies: UndefinableJSONAsRecord) {
+                if (dependencies !== undefined) {
+                    for (const key in dependencies) {
+                        if (key.startsWith(organizationPrefix)) {
+                            dependencies[key] = dependencyVersion;
                         }
                     }
                 }
+            }
 
-                updateDependencies(packageConfig["devDependencies"] as UndefinableJSONAsRecord);
-                updateDependencies(packageConfig["dependencies"] as UndefinableJSONAsRecord);
+            updateDependencies(packageConfig["devDependencies"] as UndefinableJSONAsRecord);
+            updateDependencies(packageConfig["dependencies"] as UndefinableJSONAsRecord);
 
-                fs.writeFileSync(packageConfigPath, `${JSON.stringify(packageConfig, null, 2)}\n`);
-            });
+            fs.writeFileSync(packageConfigPath, `${JSON.stringify(packageConfig, null, 2)}\n`);
         });
 
         step("npm install", () => {
