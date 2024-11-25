@@ -106,7 +106,7 @@ async function publish(): Promise<void> {
         });
 
         step("git push", () => {
-            run(false, "git", "push", "--tags");
+            run(false, "git", "push", "--all");
         });
 
         const [owner, repoGit] = run(true, "git", "config", "--get", "remote.origin.url")[0].split("/").slice(-2);
