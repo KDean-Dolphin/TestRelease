@@ -50,10 +50,8 @@ function publish(): void {
             throw new Error("Repository is not on main branch");
         }
 
-        if (repositoryStates[repository] === undefined) {
-            if (run(true, "git", "status", "--short").length !== 0) {
-                throw new Error("Repository has uncommitted changes");
-            }
+        if (repositoryStates[repository] === undefined && run(true, "git", "status", "--short").length !== 0) {
+            throw new Error("Repository has uncommitted changes");
         }
 
         function step(state: string, callback: () => void) {
@@ -112,7 +110,7 @@ function publish(): void {
             });
         });
 
-        step("npm install", () => {
+        step("npm installx", () => {
             run(false, "npm", "install");
         });
 
