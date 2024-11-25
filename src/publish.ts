@@ -58,7 +58,7 @@ async function publish(): Promise<void> {
         }).then(() => {
             run(false, "npm", "install");
 
-            run(false, "git", "commit", `--message=\"Updated to version ${config.version}\"`);
+            run(false, "git", "commit", "--all", `--message=\"Updated to version ${config.version}\"`);
             run(false, "git", "tag", `v${config.version}`);
             run(false, "git", "push", "--tags");
 
