@@ -95,7 +95,7 @@ function publish(): void {
         });
 
         step("git commit", () => {
-            run(false, "git", "commit", "--all", `--message=\"Updated to version ${config.version}\"`);
+            run(false, "git", "commit", "--all", `--message=Updated to version ${config.version}`);
         });
 
         step("git tag", () => {
