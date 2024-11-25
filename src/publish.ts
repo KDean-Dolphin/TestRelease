@@ -24,7 +24,7 @@ function run(captureOutput: boolean, command: string, ...args: string[]): string
     return captureOutput ? spawnResult.stdout.toString().split("\n").slice(0, -1) : [];
 }
 
-try {
+function publish(): void {
     const publisherPath = path.resolve(".");
 
     const stateFilePath = path.resolve(publisherPath, "config/publish.state.json");
@@ -128,6 +128,10 @@ try {
             run(false, "git", "push", "--tags");
         });
     }
+}
+
+try {
+    publish();
 } catch (e) {
     console.error(e);
 }
