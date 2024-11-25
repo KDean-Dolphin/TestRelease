@@ -30,7 +30,11 @@ async function publish(): Promise<void> {
         process.chdir(`../${repository}`);
 
         if (run(true, "git", "branch", "--show-current")[0] !== "main") {
-            throw new Error("Repository ${repository} is not on main branch");
+            throw new Error("Repository is not on main branch");
+        }
+
+        if (run(true, "git", "status", "--short").length !== 0) {
+            throw new Error("Repository has uncommitted changes");
         }
 
         await fs.promises.readFile("package.json").then((buffer) => {
