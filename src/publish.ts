@@ -1,6 +1,7 @@
 import { spawnSync } from 'child_process';
 import * as fs from "fs";
 import * as path from "node:path";
+import { Octokit } from "octokit";
 import config from "../config/publish.json" assert { type: "json" };
 
 type JSONAsRecord = Record<string, unknown>;
@@ -24,48 +25,50 @@ function run(captureOutput: boolean, command: string, ...args: string[]): string
     return captureOutput ? spawnResult.stdout.toString().split("\n").slice(0, -1) : [];
 }
 
-function publish(): void {
-    const publisherPath = path.resolve(".");
+async function publish(): Promise<void> {
+    const stateFilePath = path.resolve("config/publish.state.json");
 
-    const stateFilePath = path.resolve(publisherPath, "config/publish.state.json");
-
-    let repositoryStates: Record<string, string | undefined> = {};
+    let directoryStates: Record<string, string | undefined> = {};
 
     if (fs.existsSync(stateFilePath)) {
-        repositoryStates = JSON.parse(fs.readFileSync(stateFilePath).toString());
+        directoryStates = JSON.parse(fs.readFileSync(stateFilePath).toString());
     }
 
-    for (const repository of config.repositories) {
-        console.log(`Repository ${repository}...`);
+    function saveState() {
+        fs.writeFileSync(stateFilePath, `${JSON.stringify(directoryStates, null, 2)}\n`);
+    }
 
-        process.chdir(`../${repository}`);
+    for (const directory of config.directories) {
+        console.log(`Directory ${directory}...`);
+
+        process.chdir(`../${directory}`);
 
         if (run(true, "git", "branch", "--show-current")[0] !== "main") {
             throw new Error("Repository is not on main branch");
         }
 
-        if (repositoryStates[repository] === undefined && run(true, "git", "status", "--short").length !== 0) {
+        if (directoryStates[directory] === undefined && run(true, "git", "status", "--short").length !== 0) {
             throw new Error("Repository has uncommitted changes");
         }
 
         function step(state: string, callback: () => void) {
-            let repositoryState = repositoryStates[repository];
+            let directoryState = directoryStates[directory];
 
-            if (repositoryState === undefined || repositoryState === state) {
-                repositoryStates[repository] = state;
+            if (directoryState === undefined || directoryState === state) {
+                directoryStates[directory] = state;
 
                 try {
                     callback();
 
-                    delete repositoryStates[repository];
+                    delete directoryStates[directory];
                 } finally {
-                    fs.writeFileSync(stateFilePath, `${JSON.stringify(repositoryStates, null, 2)}\n`);
+                    fs.writeFileSync(stateFilePath, `${JSON.stringify(directoryStates, null, 2)}\n`);
                 }
             }
         }
 
         step("package", () => {
-            const packageConfigPath = path.resolve("package.json");
+            const packageConfigPath = "package.json";
 
             const packageConfig: JSONAsRecord = JSON.parse(fs.readFileSync(packageConfigPath).toString());
 
@@ -105,11 +108,37 @@ function publish(): void {
         step("git push", () => {
             run(false, "git", "push", "--tags");
         });
+
+        const [owner, repoGit] = run(true, "git", "config", "--get", "remote.origin.url")[0].split("/").slice(-2);
+        const parameterBase = {
+            owner: owner,
+            repo: repoGit.substring(0, repoGit.length - 4)
+        }
+
+        const octokit = new Octokit();
+
+        let queryCount = 0;
+
+        do {
+            await octokit.rest.actions.listWorkflowRunsForRepo({
+                ...parameterBase
+            }).then((value) => {
+                console.log(value);
+
+                return setTimeout(() => {
+                    queryCount++;
+                }, 2000);
+            });
+        } while (queryCount++ < 20);
+
+        directoryStates[directory] = "complete";
+        saveState();
     }
+
+    directoryStates = {};
+    saveState();
 }
 
-try {
-    publish();
-} catch (e) {
+await publish().catch((e) => {
     console.error(e);
-}
+});
