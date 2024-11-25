@@ -32,13 +32,7 @@ function publish(): void {
     let repositoryStates: Record<string, string | undefined> = {};
 
     if (fs.existsSync(stateFilePath)) {
-        fs.readFile(stateFilePath, null, (err, data) => {
-            if (err !== null) {
-                throw err;
-            }
-
-            repositoryStates = JSON.parse(data.toString());
-        });
+        repositoryStates = JSON.parse(fs.readFileSync(stateFilePath).toString());
     }
 
     for (const repository of config.repositories) {
@@ -65,11 +59,7 @@ function publish(): void {
 
                     delete repositoryStates[repository];
                 } finally {
-                    fs.writeFile(stateFilePath, `${JSON.stringify(repositoryStates, null, 2)}\n`, (err) => {
-                        if (err !== null) {
-                            throw err;
-                        }
-                    });
+                    fs.writeFileSync(stateFilePath, `${JSON.stringify(repositoryStates, null, 2)}\n`);
                 }
             }
         }
@@ -102,15 +92,11 @@ function publish(): void {
                 updateDependencies(packageConfig["devDependencies"] as UndefinableJSONAsRecord);
                 updateDependencies(packageConfig["dependencies"] as UndefinableJSONAsRecord);
 
-                fs.writeFile(packageConfigPath, `${JSON.stringify(packageConfig, null, 2)}\n`, (err) => {
-                    if (err !== null) {
-                        throw err;
-                    }
-                });
+                fs.writeFileSync(packageConfigPath, `${JSON.stringify(packageConfig, null, 2)}\n`);
             });
         });
 
-        step("npm installx", () => {
+        step("npm install", () => {
             run(false, "npm", "install");
         });
 
