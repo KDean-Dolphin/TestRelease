@@ -1,3 +1,4 @@
+import { OctokitResponse } from "@octokit/types";
 import { spawnSync } from 'child_process';
 import * as fs from "fs";
 import * as path from "node:path";
@@ -119,17 +120,21 @@ async function publish(): Promise<void> {
 
         let queryCount = 0;
 
+        console.log("Start");
+
         do {
-            await octokit.rest.actions.listWorkflowRunsForRepo({
-                ...parameterBase
+            await new Promise<void>((resolve) => {
+                setTimeout(resolve, queryCount === 0 ? 0 : 2000);
+            }).then(() => {
+                return octokit.rest.actions.listWorkflowRunsForRepo({
+                    ...parameterBase
+                });
             }).then((value) => {
                 console.log(value);
-
-                return setTimeout(() => {
-                    queryCount++;
-                }, 2000);
             });
         } while (queryCount++ < 20);
+
+        console.log("End");
 
         directoryStates[directory] = "complete";
         saveState();
