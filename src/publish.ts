@@ -21,8 +21,11 @@ interface SecureConfiguration {
 const configuration: Configuration = configurationJSON;
 const secureConfiguration: SecureConfiguration = secureConfigurationJSON;
 
-type UntypedRecord = Record<string, unknown>;
-type UndefinableUntypedRecord = UntypedRecord | undefined;
+interface PackageConfiguration {
+    version: string;
+    devDependencies?: Record<string, string>;
+    dependencies?: Record<string, string>;
+}
 
 interface Workflow {
     name: string;
@@ -191,16 +194,16 @@ async function publish(): Promise<void> {
         }
 
         await step("package", () => {
-            const packageConfigPath = "package.json";
+            const packageConfigurationPath = "package.json";
 
-            const packageConfig: UntypedRecord = JSON.parse(fs.readFileSync(packageConfigPath).toString());
+            const packageConfiguration: PackageConfiguration = JSON.parse(fs.readFileSync(packageConfigurationPath).toString());
 
-            packageConfig["version"] = configuration.version;
+            packageConfiguration.version = configuration.version;
 
             const organizationPrefix = `@${configuration.organization}/`;
             const dependencyVersion = `^${configuration.version}`;
 
-            function updateDependencies(dependencies: UndefinableUntypedRecord) {
+            function updateDependencies(dependencies: Record<string, string> | undefined) {
                 if (dependencies !== undefined) {
                     for (const key in dependencies) {
                         if (key.startsWith(organizationPrefix)) {
@@ -210,10 +213,10 @@ async function publish(): Promise<void> {
                 }
             }
 
-            updateDependencies(packageConfig["devDependencies"] as UndefinableUntypedRecord);
-            updateDependencies(packageConfig["dependencies"] as UndefinableUntypedRecord);
+            updateDependencies(packageConfiguration.devDependencies);
+            updateDependencies(packageConfiguration.dependencies);
 
-            fs.writeFileSync(packageConfigPath, `${JSON.stringify(packageConfig, null, 2)}\n`);
+            fs.writeFileSync(packageConfigurationPath, `${JSON.stringify(packageConfiguration, null, 2)}\n`);
         }).then(() => {
             return step("npm install", () => {
                 run(false, "npm", "install");
