@@ -1,4 +1,3 @@
-import { OctokitResponse } from "@octokit/types";
 import { spawnSync } from 'child_process';
 import * as fs from "fs";
 import * as path from "node:path";
