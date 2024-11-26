@@ -139,6 +139,8 @@ async function publish(): Promise<void> {
             userAgent: `${configuration.organization} publisher`
         });
 
+        let commitSHA = "";
+
         async function validateWorkflow() {
             const workflowIDs = new Set<number>();
 
@@ -151,7 +153,7 @@ async function publish(): Promise<void> {
                 }).then(() => {
                     return octokit.rest.actions.listWorkflowRunsForRepo({
                         ...parameterBase,
-
+                        head_sha: commitSHA
                     });
                 }).then((value) => {
                     for (const workflowRun of value.data.workflow_runs) {
@@ -205,6 +207,10 @@ async function publish(): Promise<void> {
                 run(false, "git", "commit", "--all", `--message=Updated to version ${configuration.version}`);
             });
         }).then(() => {
+            return step("git sha", () => {
+                commitSHA = run(true, "git", "rev-parse", "HEAD")[0];
+            });
+        }).then(() => {
             return step("git tag", () => {
                 run(false, "git", "tag", tag);
             });
@@ -226,9 +232,7 @@ async function publish(): Promise<void> {
                 await octokit.rest.repos.createRelease({
                     ...parameterBase,
                     tag_name: tag,
-                    // TODO Remove XXX.
-                    name: `${prerelease ? `${versionSplit[1].substring(0, 1).toUpperCase()}${versionSplit[1].substring(1)} r` : "R"} elease ${versionSplit[0]} XXX`,
-                    draft: true,
+                    name: `${prerelease ? `${versionSplit[1].substring(0, 1).toUpperCase()}${versionSplit[1].substring(1)} r` : "R"}elease ${versionSplit[0]}`,
                     prerelease
                 });
             });
