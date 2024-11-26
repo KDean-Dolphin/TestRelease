@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "node:path";
 import { Octokit } from "octokit";
 import config from "../config/publish.json" assert { type: "json" };
+import secureConfig from "../config/publish.secure.json" assert { type: "json" };
 
 type JSONAsRecord = Record<string, unknown>;
 type UndefinableJSONAsRecord = JSONAsRecord | undefined;
@@ -47,7 +48,7 @@ async function publish(): Promise<void> {
             throw new Error("Repository is not on main branch");
         }
 
-        if (directoryStates[directory] === undefined && run(true, "git", "status", "--short").length !== 0) {
+        if (!config.ignoreUncommitted && directoryStates[directory] === undefined && run(true, "git", "status", "--short").length !== 0) {
             throw new Error("Repository has uncommitted changes");
         }
 
@@ -117,7 +118,10 @@ async function publish(): Promise<void> {
             repo: repoGit.substring(0, repoGit.length - 4)
         }
 
-        const octokit = new Octokit();
+        const octokit = new Octokit({
+            auth: secureConfig.auth,
+            userAgent: `${config.organization}/publish`
+        });
 
         let queryCount = 0;
 
@@ -129,9 +133,15 @@ async function publish(): Promise<void> {
                     ...parameterBase
                 });
             }).then((value) => {
-                console.log(`${JSON.stringify(value.data, null, 2)}\n`);
+                for (const workflowRun of value.data.workflow_runs) {
+                    if (workflowRun.status !== "completed") {
+                        console.log(`ID: ${workflowRun.id}\nName: ${workflowRun.name}\nStatus: ${workflowRun.status}\nConclusion: ${workflowRun.conclusion}\nBranch: ${workflowRun.head_branch}\nSHA: ${workflowRun.head_sha}\nEvent: ${workflowRun.event}\n\n`);
+                    }
+                }
+
+                console.log("-");
             });
-        } while (queryCount++ < 20);
+        } while (queryCount++ < 30);
 
         directoryStates[directory] = "complete";
         saveState();

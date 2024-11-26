@@ -3,5 +3,6 @@
   "organization": "aidc-toolkit",
   "directories": [
     "TestRelease"
-  ]
+  ],
+  "ignoreUncommitted": true
 }
