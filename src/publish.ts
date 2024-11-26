@@ -129,7 +129,7 @@ async function publish(): Promise<void> {
                     ...parameterBase
                 });
             }).then((value) => {
-                console.log(`${JSON.stringify(value, null, 2)}\n`);
+                console.log(`${JSON.stringify(value.data, null, 2)}\n`);
             });
         } while (queryCount++ < 20);
 
