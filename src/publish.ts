@@ -101,12 +101,14 @@ async function publish(): Promise<void> {
             run(false, "git", "commit", "--all", `--message=Updated to version ${config.version}`);
         });
 
+        const tag = `v${config.version}`;
+
         step("git tag", () => {
-            run(false, "git", "tag", `v${config.version}`);
+            run(false, "git", "tag", tag);
         });
 
         step("git push", () => {
-            run(false, "git", "push", "--all");
+            run(false, "git", "push", "--atomic", "origin", "main", tag);
         });
 
         const [owner, repoGit] = run(true, "git", "config", "--get", "remote.origin.url")[0].split("/").slice(-2);
