@@ -2,6 +2,7 @@ import { spawnSync } from 'child_process';
 import * as fs from "fs";
 import * as path from "node:path";
 import { Octokit } from "octokit";
+import { parse as yamlParse } from "yaml";
 
 import configurationJSON from "../config/publish.json" assert { type: "json" };
 import secureConfigurationJSON from "../config/publish.secure.json" assert { type: "json" };
@@ -20,8 +21,20 @@ interface SecureConfiguration {
 const configuration: Configuration = configurationJSON;
 const secureConfiguration: SecureConfiguration = secureConfigurationJSON;
 
-type JSONAsRecord = Record<string, unknown>;
-type UndefinableJSONAsRecord = JSONAsRecord | undefined;
+type UntypedRecord = Record<string, unknown>;
+type UndefinableUntypedRecord = UntypedRecord | undefined;
+
+interface Workflow {
+    name: string;
+    on: {
+        push?: {
+            branches: string[];
+        };
+        release?: {
+            types: string[];
+        };
+    }
+}
 
 function run(captureOutput: boolean, command: string, ...args: string[]): string[] {
     const spawnResult = spawnSync(command, args, {
@@ -42,16 +55,16 @@ function run(captureOutput: boolean, command: string, ...args: string[]): string
 }
 
 async function publish(): Promise<void> {
-    const stateFilePath = path.resolve("config/publish.state.json");
+    const statePath = path.resolve("config/publish.state.json");
 
     let directoryStates: Record<string, string | undefined> = {};
 
-    if (fs.existsSync(stateFilePath)) {
-        directoryStates = JSON.parse(fs.readFileSync(stateFilePath).toString());
+    if (fs.existsSync(statePath)) {
+        directoryStates = JSON.parse(fs.readFileSync(statePath).toString());
     }
 
     function saveState() {
-        fs.writeFileSync(stateFilePath, `${JSON.stringify(directoryStates, null, 2)}\n`);
+        fs.writeFileSync(statePath, `${JSON.stringify(directoryStates, null, 2)}\n`);
     }
 
     for (const directory of configuration.directories) {
@@ -65,6 +78,18 @@ async function publish(): Promise<void> {
 
         if (!configuration.ignoreUncommitted && directoryStates[directory] === undefined && run(true, "git", "status", "--short").length !== 0) {
             throw new Error("Repository has uncommitted changes");
+        }
+
+        const releaseWorkflowPath = ".github/workflows/release.yml";
+
+        let hasPushWorkflow = false;
+        let hasReleaseWorkflow = false;
+
+        if (fs.existsSync(releaseWorkflowPath)) {
+            const workflowOn = (yamlParse(fs.readFileSync(releaseWorkflowPath).toString()) as Workflow).on;
+
+            hasPushWorkflow = workflowOn.push?.branches?.includes("main") ?? false;
+            hasReleaseWorkflow = workflowOn.release?.types?.includes("published") ?? false;
         }
 
         async function step(state: string, callback: () => (void | Promise<void>)): Promise<void> {
@@ -94,7 +119,7 @@ async function publish(): Promise<void> {
 
                     log("Completed");
                 } finally {
-                    fs.writeFileSync(stateFilePath, `${JSON.stringify(directoryStates, null, 2)}\n`);
+                    fs.writeFileSync(statePath, `${JSON.stringify(directoryStates, null, 2)}\n`);
                 }
             } else {
                 log("Skipped");
@@ -114,17 +139,50 @@ async function publish(): Promise<void> {
             userAgent: `${configuration.organization} publisher`
         });
 
+        async function validateWorkflow() {
+            const workflowIDs = new Set<number>();
+
+            let queryCount = 0;
+            let allCompleted = false;
+
+            do {
+                await new Promise<void>((resolve) => {
+                    setTimeout(resolve, queryCount === 0 ? 0 : 2000);
+                }).then(() => {
+                    return octokit.rest.actions.listWorkflowRunsForRepo({
+                        ...parameterBase,
+
+                    });
+                }).then((value) => {
+                    for (const workflowRun of value.data.workflow_runs) {
+                        if (workflowRun.status !== "completed" || workflowIDs.has(workflowRun.id)) {
+                            if (workflowRun.status !== "completed") {
+                                workflowIDs.add(workflowRun.id);
+                            } else {
+                                workflowIDs.delete(workflowRun.id);
+                                allCompleted = workflowIDs.size === 0;
+                            }
+
+                            console.log(`ID: ${workflowRun.id}\nName: ${workflowRun.name}\nStatus: ${workflowRun.status}\nConclusion: ${workflowRun.conclusion}\nBranch: ${workflowRun.head_branch}\nSHA: ${workflowRun.head_sha}\nEvent: ${workflowRun.event}\n\n`);
+                        }
+                    }
+
+                    console.log("-");
+                });
+            } while (queryCount++ < 30 && !allCompleted);
+        }
+
         await step("package", () => {
             const packageConfigPath = "package.json";
 
-            const packageConfig: JSONAsRecord = JSON.parse(fs.readFileSync(packageConfigPath).toString());
+            const packageConfig: UntypedRecord = JSON.parse(fs.readFileSync(packageConfigPath).toString());
 
             packageConfig["version"] = configuration.version;
 
             const organizationPrefix = `@${configuration.organization}/`;
             const dependencyVersion = `^${configuration.version}`;
 
-            function updateDependencies(dependencies: UndefinableJSONAsRecord) {
+            function updateDependencies(dependencies: UndefinableUntypedRecord) {
                 if (dependencies !== undefined) {
                     for (const key in dependencies) {
                         if (key.startsWith(organizationPrefix)) {
@@ -134,8 +192,8 @@ async function publish(): Promise<void> {
                 }
             }
 
-            updateDependencies(packageConfig["devDependencies"] as UndefinableJSONAsRecord);
-            updateDependencies(packageConfig["dependencies"] as UndefinableJSONAsRecord);
+            updateDependencies(packageConfig["devDependencies"] as UndefinableUntypedRecord);
+            updateDependencies(packageConfig["dependencies"] as UndefinableUntypedRecord);
 
             fs.writeFileSync(packageConfigPath, `${JSON.stringify(packageConfig, null, 2)}\n`);
         }).then(() => {
@@ -155,6 +213,12 @@ async function publish(): Promise<void> {
                 run(false, "git", "push", "--atomic", "origin", "main", tag);
             });
         }).then(() => {
+            return step("push workflow", async () => {
+                if (hasPushWorkflow) {
+                    await validateWorkflow();
+                }
+            });
+        }).then(() => {
             return step("release", async () => {
                 const versionSplit = configuration.version.split("-");
                 const prerelease = versionSplit.length !== 1;
@@ -168,30 +232,12 @@ async function publish(): Promise<void> {
                     prerelease
                 });
             });
-        }).then(async () => {
-            const workflowIDs = new Set<number>();
-
-            let queryCount = 0;
-
-            do {
-                await new Promise<void>((resolve) => {
-                    setTimeout(resolve, queryCount === 0 ? 0 : 2000);
-                }).then(() => {
-                    return octokit.rest.actions.listWorkflowRunsForRepo({
-                        ...parameterBase
-                    });
-                }).then((value) => {
-                    for (const workflowRun of value.data.workflow_runs) {
-                        if (workflowRun.status !== "completed" || workflowIDs.has(workflowRun.id)) {
-                            workflowIDs.add(workflowRun.id);
-
-                            console.log(`ID: ${workflowRun.id}\nName: ${workflowRun.name}\nStatus: ${workflowRun.status}\nConclusion: ${workflowRun.conclusion}\nBranch: ${workflowRun.head_branch}\nSHA: ${workflowRun.head_sha}\nEvent: ${workflowRun.event}\n\n`);
-                        }
-                    }
-
-                    console.log("-");
-                });
-            } while (queryCount++ < 30);
+        }).then(() => {
+            return step("release workflow", async () => {
+                if (hasReleaseWorkflow) {
+                    await validateWorkflow();
+                }
+            });
         });
 
         directoryStates[directory] = "complete";

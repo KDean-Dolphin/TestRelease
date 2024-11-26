@@ -37,6 +37,7 @@
     "@aidc-toolkit/utility": "^0.9.5",
     "@octokit/types": "^13.6.1",
     "octokit": "^4.0.2",
-    "ts-mixer": "^6.0.4"
+    "ts-mixer": "^6.0.4",
+    "yaml": "^2.6.1"
   }
 }
