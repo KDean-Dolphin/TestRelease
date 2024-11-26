@@ -139,39 +139,49 @@ async function publish(): Promise<void> {
             userAgent: `${configuration.organization} publisher`
         });
 
-        let commitSHA = "";
+        let commitSHA: string;
 
         async function validateWorkflow() {
-            const workflowIDs = new Set<number>();
+            if (commitSHA === undefined) {
+                commitSHA = run(true, "git", "rev-parse", "HEAD")[0];
+            }
+
+            let workflowRunID = -1;
 
             let queryCount = 0;
-            let allCompleted = false;
+            let completed = false;
 
             do {
                 await new Promise<void>((resolve) => {
-                    setTimeout(resolve, queryCount === 0 ? 0 : 2000);
+                    setTimeout(resolve, 2000);
                 }).then(() => {
                     return octokit.rest.actions.listWorkflowRunsForRepo({
                         ...parameterBase,
                         head_sha: commitSHA
                     });
-                }).then((value) => {
-                    for (const workflowRun of value.data.workflow_runs) {
-                        if (workflowRun.status !== "completed" || workflowIDs.has(workflowRun.id)) {
-                            if (workflowRun.status !== "completed") {
-                                workflowIDs.add(workflowRun.id);
-                            } else {
-                                workflowIDs.delete(workflowRun.id);
-                                allCompleted = workflowIDs.size === 0;
-                            }
+                }).then((response) => {
+                    for (const workflowRun of response.data.workflow_runs) {
+                        if (workflowRun.status !== "completed") {
+                            if (workflowRun.id === workflowRunID) {
+                                console.log(workflowRun.status);
+                            } else if (workflowRunID === -1) {
+                                workflowRunID = workflowRun.id;
 
-                            console.log(`ID: ${workflowRun.id}\nName: ${workflowRun.name}\nStatus: ${workflowRun.status}\nConclusion: ${workflowRun.conclusion}\nBranch: ${workflowRun.head_branch}\nSHA: ${workflowRun.head_sha}\nEvent: ${workflowRun.event}\n\n`);
+                                console.log(`Workflow run ID ${workflowRunID}`);
+                            } else {
+                                throw new Error(`Parallel workflow runs for SHA ${commitSHA}`);
+                            }
+                        } else if (workflowRun.id === workflowRunID) {
+                            completed = true;
                         }
                     }
 
-                    console.log("-");
+                    // Abort if workflow run not started after 10 queries.
+                    if (++queryCount === 10 && workflowRunID === -1) {
+                        throw new Error(`Workflow run not started for SHA ${commitSHA}`)
+                    }
                 });
-            } while (queryCount++ < 30 && !allCompleted);
+            } while (!completed);
         }
 
         await step("package", () => {
@@ -205,10 +215,6 @@ async function publish(): Promise<void> {
         }).then(() => {
             return step("git commit", () => {
                 run(false, "git", "commit", "--all", `--message=Updated to version ${configuration.version}`);
-            });
-        }).then(() => {
-            return step("git sha", () => {
-                commitSHA = run(true, "git", "rev-parse", "HEAD")[0];
             });
         }).then(() => {
             return step("git tag", () => {
