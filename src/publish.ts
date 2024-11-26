@@ -120,8 +120,6 @@ async function publish(): Promise<void> {
 
         let queryCount = 0;
 
-        console.log("Start");
-
         do {
             await new Promise<void>((resolve) => {
                 setTimeout(resolve, queryCount === 0 ? 0 : 2000);
@@ -133,8 +131,6 @@ async function publish(): Promise<void> {
                 console.log(value);
             });
         } while (queryCount++ < 20);
-
-        console.log("End");
 
         directoryStates[directory] = "complete";
         saveState();
