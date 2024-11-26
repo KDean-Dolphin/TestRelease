@@ -163,7 +163,7 @@ async function publish(): Promise<void> {
                     for (const workflowRun of response.data.workflow_runs) {
                         if (workflowRun.status !== "completed") {
                             if (workflowRun.id === workflowRunID) {
-                                console.log(workflowRun.status);
+                                process.stdout.write(".");
                             } else if (workflowRunID === -1) {
                                 workflowRunID = workflowRun.id;
 
@@ -172,6 +172,12 @@ async function publish(): Promise<void> {
                                 throw new Error(`Parallel workflow runs for SHA ${commitSHA}`);
                             }
                         } else if (workflowRun.id === workflowRunID) {
+                            process.stdout.write("\n");
+
+                            if (workflowRun.conclusion !== "success") {
+                                throw new Error(`Workflow ${workflowRun.conclusion}`)
+                            }
+
                             completed = true;
                         }
                     }
