@@ -127,7 +127,7 @@ async function publish(): Promise<void> {
                     ...parameterBase
                 });
             }).then((value) => {
-                console.log(value);
+                console.log(value.data);
             });
         } while (queryCount++ < 20);
 
